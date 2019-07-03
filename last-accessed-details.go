@@ -138,10 +138,16 @@ func writeRoleLastAccessedDetails(writer csv.Writer, accountId string) {
 		// CSV record
 		var record []string
 		var lastAccessedDays float64 = -1
+		var ageDays float64 = -1
 		var lastAccessedService string = ""
 
 		record = append(record, *role.RoleName)
 		record = append(record, accountId)
+
+		if role.CreateDate != nil {
+			ageDays = now.Sub(*role.CreateDate).Hours() / 24
+		}
+		record = append(record, fmt.Sprintf("%0.0f", ageDays))		
 		
 		if serviceLastAccessed.LastAuthenticated != nil {
 			lastAccessedDays = now.Sub(*serviceLastAccessed.LastAuthenticated).Hours() / 24
@@ -227,10 +233,16 @@ func writeUserLastAccessedDetails(writer csv.Writer, accountId string) {
 		// CSV record
 		var record []string
 		var lastAccessedDays float64 = -1
+		var ageDays float64 = -1
 		var lastAccessedService string = ""
 
 		record = append(record, *user.UserName)
 		record = append(record, accountId)
+
+		if user.CreateDate != nil {
+			ageDays = now.Sub(*user.CreateDate).Hours() / 24
+		}
+		record = append(record, fmt.Sprintf("%0.0f", ageDays))	
 		
 		if serviceLastAccessed.LastAuthenticated != nil {
 			lastAccessedDays = now.Sub(*serviceLastAccessed.LastAuthenticated).Hours() / 24
@@ -256,7 +268,7 @@ func writeUserLastAccessedDetails(writer csv.Writer, accountId string) {
 func main() {
 	accounts := getOrganizationAccounts()
 	currentTime := time.Now()
-	headers := []string{"Name","Account","LastAccessedDays","LastAccessService","Arn"}
+	headers := []string{"Name","Account","AgeDays","LastAccessedDays","LastAccessService","Arn"}
 
 	roleFile, err := os.Create(fmt.Sprintf("role-last-access-details-%s.csv", currentTime.Format("20060102")))
 	if err != nil {
