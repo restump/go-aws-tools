@@ -140,7 +140,9 @@ func getOrganizationAccounts() []organizations.Account {
 	err := orgClient.ListAccountsPages(&organizations.ListAccountsInput{}, 
 		func(page *organizations.ListAccountsOutput, lastPage bool) bool {
 			for _, account := range page.Accounts {
-				accounts = append(accounts, *account)
+				if *account.Status == "ACTIVE" {
+					accounts = append(accounts, *account)
+				}
 			}
 			return true 
 		})

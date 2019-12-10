@@ -30,7 +30,7 @@ func getOrganization() organizations.Organization {
 	callerIdentity := getCallerIdentity()
 
 	sess := session.Must(session.NewSession())
-	role := fmt.Sprintf("arn:aws:iam::%s:role/CloudCoreRO", *callerIdentity.Account)
+	role := fmt.Sprintf("arn:aws:iam::%s:role/CloudCoreAdmin", *callerIdentity.Account)
 	cred := stscreds.NewCredentials(sess, role)
 	orgClient := organizations.New(sess, &aws.Config{Credentials: cred})
 
@@ -49,14 +49,16 @@ func getOrganizationAccounts() []organizations.Account {
 	organization := getOrganization()
 	
 	sess := session.Must(session.NewSession())
-	role := fmt.Sprintf("arn:aws:iam::%s:role/CloudCoreRO", *organization.MasterAccountId)
+	role := fmt.Sprintf("arn:aws:iam::%s:role/CloudCoreAdmin", *organization.MasterAccountId)
 	cred := stscreds.NewCredentials(sess, role)
 	orgClient := organizations.New(sess, &aws.Config{Credentials: cred})
 	
 	err := orgClient.ListAccountsPages(&organizations.ListAccountsInput{}, 
 		func(page *organizations.ListAccountsOutput, lastPage bool) bool {
 			for _, account := range page.Accounts {
-				accounts = append(accounts, *account)
+				if *account.Status == "ACTIVE" {
+					accounts = append(accounts, *account)
+				}
 			}
 			return true 
 		})
@@ -68,13 +70,14 @@ func getOrganizationAccounts() []organizations.Account {
 	sort.Slice(accounts, func(i, j int) bool {
 		return *accounts[i].Id < *accounts[j].Id
 	})
+
 	return accounts
 }
 
 
 func writeRoleLastAccessedDetails(writer csv.Writer, accountId string) {
 	sess := session.Must(session.NewSession())
-	role := fmt.Sprintf("arn:aws:iam::%s:role/CloudCoreRO", accountId)
+	role := fmt.Sprintf("arn:aws:iam::%s:role/CloudCoreAdmin", accountId)
 	cred := stscreds.NewCredentials(sess, role)
 	iamClient := iam.New(sess, &aws.Config{Credentials: cred})
 
@@ -172,7 +175,7 @@ func writeRoleLastAccessedDetails(writer csv.Writer, accountId string) {
 
 func writeUserLastAccessedDetails(writer csv.Writer, accountId string) {
 	sess := session.Must(session.NewSession())
-	role := fmt.Sprintf("arn:aws:iam::%s:role/CloudCoreRO", accountId)
+	role := fmt.Sprintf("arn:aws:iam::%s:role/CloudCoreAdmin", accountId)
 	cred := stscreds.NewCredentials(sess, role)
 	iamClient := iam.New(sess, &aws.Config{Credentials: cred})
 
