@@ -1,0 +1,88 @@
+package scan
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/rs/zerolog"
+	"internal/helpers"
+)
+
+type AccountScan struct {
+	awsConfig aws.Config
+	logger zerolog.Logger
+	workerPool   *scan.WorkerPool
+}
+
+func NewAccountScan(ctx context.Context, nworkers int, size int) *AccountScan {
+	scan := &AccountScan{}
+	scan.logger = zerolog.Ctx(ctx).With().Str("provider", "aws").
+		Str("scan", "account").Logger()
+
+	region := helpers.LookupEnvWithDefault("AWS_REGION", "us-east-1")
+	cfg, _ := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
+	scan.awsConfig = cfg
+
+	scan.workerPool = scan.NewWorkerPool(size)
+	for i := 0; i < nworkers; i++ {
+		scan.workerPool.AddWorker()
+	}
+
+	return scan
+}
+
+func (s *AccountScan) AddScan(fn func(string, interface{}), region string, 
+	inputs interface{}) {
+
+	s.workerPool.AddWork(&Work{
+		WorkFn: fn,
+		WorkIn: &WorkInput{
+			Input: input,
+			Region: region,
+		},
+	})
+
+	return
+}
+
+func (s *AccountScan) Scan() ([]interface{}, error) {
+	resources := make([]interface{}, 0)
+
+	regions, err := helpers.GetEnabledRegions(s.awsConfig)
+	if err != nil {
+		return resources, fmt.Errorf("Scan: %w", err)
+	}
+
+	for _, region := range regions {
+		s.workerPool.AddWork(&Work{
+			WorkFn: s.Ec2InstanceScan,
+			Inputs: map[string]string{"region": region},
+		})
+	}
+
+	s.pool.CloseWorkers()
+	s.pool.Wait()
+	s.pool.CloseResults()
+
+	counts := make(map[string]map[string]int, 0)
+	for result := range s.pool.Results {
+		for _, resource := range result.Resources() {
+			if counts[resource.GetService()] == nil {
+				counts[resource.GetService()] = make(map[string]int, 0)
+			}
+			counts[resource.GetService()][resource.GetResourceType()]++
+			resources = append(resources, resource)
+		}
+	}
+
+	for service, types := range counts {
+		for resourceType, count := range types {
+			s.logger.Debug().Str("service", service).Str("resourceType", resourceType).
+				Int("count", count).Msg("resource count")
+		}
+	}
+	return resources, nil
+}
